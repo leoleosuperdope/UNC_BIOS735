@@ -1,0 +1,19 @@
+Package: bios735
+Title: Functions for a Faster t-test
+Version: 0.0.1
+Authors@R: 
+    person(given = "Leo",
+           family = "Li",
+           email = "haolin@live.unc.edu",
+           role=c("aut","cre"))
+Description: Contains function which calculates the t-test statistic for each row in a matrix. 
+License: GPL-2
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.1.1
+Suggests: 
+    testthat (>= 3.0.0) 
+Config/testthat/edition: 3
+Imports: Rcpp (>= 0.11.0), RcppArmadillo
+LinkingTo: Rcpp, RcppArmadillo

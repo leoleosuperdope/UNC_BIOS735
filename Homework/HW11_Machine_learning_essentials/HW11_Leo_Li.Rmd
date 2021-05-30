@@ -1,0 +1,94 @@
+---
+title: "Homework 11 - Machine learning essentials"
+author: "Leo Li (PID: 730031954)"
+date: "`r format(Sys.time(), '%m/%d/%Y')`"
+output: html_document
+---
+
+# Use of `caret` with various methods
+
+Run three machine learning models over the following training dataset
+with features `x` and labels `y`. You can use default tuning, e.g.
+bootstrap based resampling for tuning, as set by `trainControl`.
+
+* SVM with radial kernel `"svmRadial"`
+* Random forest `"rf"`
+* Gradient boosting machine `"gbm"` (use `verbose=FALSE`)
+
+Record the time to train, and the best Kappa value for each method
+over the tuning grid (`rf` does not use tuning parameters via
+`train` for this dataset). Which method obtains the best Kappa?
+
+Finally, make a `pointrange` plot (see `geom_pointrange`), with the
+optimal Kappa and the SD for the optimal Kappa. Is there a clear
+winner, or all the methods mostly overlapping?
+
+```{r setup, include=FALSE}
+library(caret)
+library(ggplot2)
+```
+
+```{r}
+data(faithful)
+n <- nrow(faithful)
+faithful <- data.frame(lapply(faithful, scale))
+plot(faithful)
+faithful$cl <- factor(kmeans(faithful, centers=2)$cluster)
+plot(faithful[,1:2], col=faithful$cl)
+# make it more challenging
+set.seed(1)
+faithful[,1] <- faithful[,1] + rt(n,df=5)/2
+faithful[,2] <- faithful[,2] + rt(n,df=5)/2
+plot(faithful[,1:2], col=faithful$cl)
+x <- faithful[,1:2]
+y <- faithful[,3]
+```
+
+First, we run the three machine learning methods, and output the training time and optimal Kappa.
+
+```{r}
+# SVM with radial kernel
+start1 = Sys.time()
+fit1 <- train(x, y, method="svmRadial")
+end1 = Sys.time()
+out1 <- fit1$results[rownames(fit1$bestTune),]
+kappa1 <- out1$Kappa
+kappasd1 <- out1$KappaSD
+
+# Random forest
+start2 = Sys.time()
+fit2 <- train(x, y, method="rf")
+end2 = Sys.time()
+out2 <- fit2$results[rownames(fit2$bestTune),]
+kappa2 <- out2$Kappa
+kappasd2 <- out2$KappaSD
+
+# Gradient boosting machine
+start3 = Sys.time()
+fit3 <- train(x, y, method="gbm", verbose=FALSE)
+end3 = Sys.time()
+out3 <- fit3$results[rownames(fit3$bestTune),]
+kappa3 <- out3$Kappa
+kappasd3 <- out3$KappaSD
+
+df=data.frame(Method=c("svmRadial","rf","gbm"), Kappa=c(kappa1,kappa2,kappa3), KappaSD=c(kappasd1, kappasd2, kappasd3), Time=c(end1-start1,end2-start2,end3-start3))
+df
+```
+
+Based on the results, we can see that SVM with radial kernel obtains the best Kappa.
+
+Now, we make a `pointrange` plot, with the optimal Kappa and the SD for the optimal Kappa.
+
+```{r}
+r = 1
+d=data.frame(method=c("svmRadial","rf","gbm"), kappa=c(kappa1,kappa2,kappa3), lower=c(kappa1-r*kappasd1,kappa2-r*kappasd2,kappa3-r*kappasd3), upper=c(kappa1+r*kappasd1,kappa2+r*kappasd2,kappa3+r*kappasd3))
+ggplot() + geom_pointrange(data=d, mapping=aes(x=method, y=kappa, ymin=upper, ymax=lower))
+```
+
+From the `pointrange` plot, we can see that there is no clear winner among the methods that we have considered, since a large proportion of the `pointrange` plots for the three methods are overlapping. 
+
+
+
+
+
+

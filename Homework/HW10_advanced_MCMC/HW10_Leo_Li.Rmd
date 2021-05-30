@@ -1,0 +1,135 @@
+---
+title: "HW 10 - advMCMC"
+author: "Leo Li (PID: 730031954)"
+date: "`r format(Sys.time(), '%m/%d/%Y')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# MCMC extension of HW 6
+
+We would like to simulate from the posterior distribution of parameter $\boldsymbol{\theta} = (\pi,\lambda)$ pertaining to the fishing dataset and zero-inflated poisson model described in HW 6, assuming $\pi$ has a Unif(0,1) prior, and $\lambda$ has a Gamma(2,2) prior (shape and scale = 2).  The joint posterior can be written as $f(\pi,\lambda | \boldsymbol{y}) \propto f(\boldsymbol{y} | \pi, \lambda)f(\pi,\lambda) = f(\boldsymbol{y} | \pi, \lambda)f(\pi)f(\lambda)$, where $f(\boldsymbol{y} | \pi,\lambda)$ is the likelihood give in HW 6 except with $\lambda$ unknown, $f(\pi)$ is the specified prior for $\pi$, and $f(\lambda)$ is the specified prior for $\lambda$.  
+
+Implement a MH random walk procedure to sample from the joint posterior of $\boldsymbol{\theta} = (\pi,\lambda)$.  You do not necessarily need to do a change of variable for $\pi$ or $\lambda$, however for proposals that exceed the boundaries of the parameter space of either parameter, the posterior for the propsal should be set = 0 (MH ratio = 0).  You may want to consider a narrower random walk variance in such as setting as well. 
+
+You may use the following code below to get started, using $M = 20000$, random seed (1), starting values ($\pi^{(0)} = 0.3$, $\lambda = 3$), and burn-in period (2000 iterations) for all implementations of the algorithm below. Report the posterior means for $\pi$ and $\lambda$, as well as diagnostics such as trace plots and autocorrelation plots.
+
+```{r}
+### HELPER FUNCTIONS
+# log prior for lambda, fill in 
+lplambda = function(lambda){
+  return(log(dgamma(lambda, shape = 2, rate = 0.5)))
+}
+
+# log prior for pi, fill in 
+lppi = function(pi){
+  return(log(dunif(pi, 0, 1)))
+}
+
+# bivariate RW proposal function
+# hint: bivariate proposal same as generating two indep proposals here
+h.sim = function(){
+  return(runif(2,-0.06,0.06))
+}
+
+# returns ll, or log f(y|lambda, pi)
+# compute given y and ny from table
+ll = function(y, ny, x){
+  pi = x[1]
+  lambda = x[2]
+  ll = ny[1]*log(pi[1]+(1-pi[1])*exp(-lambda)) +(sum(ny)-ny[1])*(log(1-pi[1]) - lambda) + sum(ny*y)*log(lambda) + lplambda(lambda) + lppi(pi)
+  return(ll)
+}
+
+# MH ratio
+# Hint; since h symmetric, proposal density cancels out of ratio
+R = function(y, y_weight, x, xt){
+  # x is the proposal, xt is current state
+  # x[1],xt[1] pertain to pi, x[2],xt[2] pertain to lambda
+  logR <- ll(y, y_weight, x) - ll(y, y_weight, xt)
+  R = exp(logR)
+  return(R)
+}
+```
+
+Now start the main code for the sampler
+
+```{r}
+# set the seed
+set.seed(1)
+# data fro HW 6
+y = 0:6
+ny = c(3062, 587, 284, 103, 33, 4, 2)
+# Set chain length
+M = 20000
+# initialize the chain vector (alpha, lambda)
+x.rw.chain = matrix(0, M, 2)
+colnames(x.rw.chain) = c("pi","lambda")
+# Initialize chain with specified initial values
+# alpha, lambda
+x.rw.chain[1,] = c(0.3, 3) 
+
+# now start chain
+for(i in 1:(M-1)){
+  # set the value at current iteration of the chain to variable xt
+  xt = x.rw.chain[i,]
+  # draw a proposal from the proposal density
+  x = xt + h.sim()
+  # calculate MH ratio 
+  if((x[1]>0)&(x[1]<1)&(x[2]>0)){
+    r = min(R(y, ny, x, xt), 1)
+  } else{
+    r=0
+  }
+  # Generate draw from bernoulli(p).
+  keep = rbinom(1, 1, r)
+  # if keep = 1, then set next iteration equal to then proposal
+  if(keep == 1){
+    x.rw.chain[i+1,] = x
+  }else{
+    # otherwise, carry over value from the current iteration
+    x.rw.chain[i+1,] = xt
+  }
+}
+```
+
+The posterior means for $\pi$ and $\lambda$ are reported as below:
+
+```{r}
+burn.in = 500
+# posterior mean for pi
+mean(x.rw.chain[-c(1:burn.in), 1])
+# posterior mean for lambda
+mean(x.rw.chain[-c(1:burn.in), 2])
+```
+
+The diagnostics for $\pi$ are presented as below:
+
+```{r}
+# Diagnostics for pi
+par(mfrow=c(2,2))
+plot(x.rw.chain[, 1],type="l",ylab="pi",xlab="t",
+     main=paste0("Sample Path for pi"))
+hist(x.rw.chain[-c(1:burn.in), 1],breaks=20,xlab="pi",
+     main=paste0("Hist. of Random Walk for pi"))
+acf(x.rw.chain[-c(1:burn.in), 1], ylab="ACF",xlab="lag",
+     main=paste0("Autocorrelation Plot for pi"))
+```
+
+The diagnostics for $\lambda$ are presented as below:
+
+```{r}
+# Diagnostics for lambda
+par(mfrow=c(2,2))
+plot(x.rw.chain[, 2],type="l",ylab="lambda",xlab="t",
+     main=paste0("Sample Path for lambda"))
+hist(x.rw.chain[-c(1:burn.in), 2],breaks=20,xlab="lambda",
+     main=paste0("Hist. of Random Walk for lambda"))
+acf(x.rw.chain[-c(1:burn.in), 2], ylab="ACF",xlab="lag",
+     main=paste0("Autocorrelation Plot for lambda"))
+```
+
+From the diagnostics, we can see that the sample path plots show each of the chain realizations $\boldsymbol{\theta}^{(t)} = (\pi^{(t)},\lambda^{(t)})$ with respect to the iteration number t. We see that the Markov chain quickly moves away from its starting point and seems easily able to sample values from all portions of the parameter space supported by the posterior for $\boldsymbol{\theta}$. We can also see that the chain has converged to the stationary distribution. In addition, the histogram that drops the first 500 iterations of the chain shows that the chain produced a sample whose means well approximates the true posterior mean of $\boldsymbol{\theta}$. Finally, autocorrelation plots are also used to summarize the correlation in the sequence of $\boldsymbol{\theta}^{(t)}$ at different iteration lags. The autocorrelation plots exhibit quick decay of the autocorrelation as the lag between iterations increases. 

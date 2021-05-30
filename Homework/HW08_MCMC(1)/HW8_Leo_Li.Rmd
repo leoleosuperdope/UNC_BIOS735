@@ -1,0 +1,93 @@
+---
+title: "HW 8 - MCMC"
+author: "Leo Li (PID: 730031954)"
+date: "`r format(Sys.time(), '%m/%d/%Y')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Importance and Rejection Sampling
+
+Consider finding $\sigma^2 = E[X^2]$ when $X$ has the density that is proportional to $q(x) =\exp({−|x|^3/3})$.  Write the form of the integral pertaining to this expectation below, assuming the normalizing constant for $q(x)$ is $c$.
+
+Solution:
+
+The integral pertaining to the expectation is,
+$$\int_{-\infty}^{\infty}cx^2q(x)dx = \int_{-\infty}^{\infty}cx^2\exp({−|x|^3/3})dx$$. 
+
+
+## Find the estimate for $\sigma^2$ using importance sampling.  
+
+Write the expression for the integral using an importance sampling scheme, specifying your choice for the importance sampling density $g$ and re-express the integral in terms of $X^2$, $g(x)$ and $q(x)$.  Then, write the form of the approximation of this integrand based on the importance samples drawn from $g$. Then, carry out this approximation of the expectation in the code below. 
+
+In order to conduct the importance sampling, we choose the importance sampling density as the standard normal density, namely,
+$$g(x) = \frac{1}{\sqrt{2\pi}}\exp(-\frac{x^2}{2}).$$
+Then, the integral can be re-expressed as that,
+$$\int_{-\infty}^{\infty}cx^2q(x)dx = \int_{-\infty}^{\infty}cx^2\frac{q(x)}{g(x)}g(x)dx$$.
+Finally, the form of the approximation of the integrand based on the importance samples drawn from $g(x)$ can be expressed as:
+$$\hat{\sigma}^2_{IS} = \sum_{k=1}^M X_k^2 w(X_k),$$
+where $X_1, \ldots, X_M$ are iid sample from standard normal distribution, and $w(X_k) = \frac{w^*(X_k)}{\sum_{k=1}^M w^*(X_k)}$ are standardized weights, where $w^*(X_k) = \frac{q(X_k)}{g(X_k)}$.
+
+
+```{r}
+## Solution: write any helper functions here (q(x), etc)
+dq = function(x){
+  return(exp(-(abs(x))^3/3))
+}
+## End Solution
+
+# set M
+M = 10^5
+
+## Solution: place primary code evaluating the expectation here with importance sampling
+set.seed(100)
+y_imp = rnorm(M, 0, 1)
+wstar = dq(y_imp) / dnorm(y_imp, 0, 1)
+w = wstar/(sum(wstar))
+print(sum(y_imp^2 * w))
+```
+
+## Repeat the procedure using rejection sampling. 
+
+Similar to before, write out the form of the integral and then its approximation, this time based on sampling from the target density $q(x)$.  Then, carry out this approximation of the expectation in the code below. 
+
+Hint:  We just need to show that $e$ exceeds the target density everywhere, and that the distribution $g$ that we draw samples from only differs from $e$ by a constant $\alpha$.  
+
+In this question, we would like to evaluate the integral $\int_{-\infty}^{\infty}cx^2q(x)dx$, and we choose the envelope function such that,
+$$e(x) = \frac{g(x)}{\alpha},$$
+where $g(x)$ is the density of standard normal distribution, and $\alpha = \frac{1}{2c\sqrt{2\pi}}$. We can show that $e(x) >cq(x)$ for all $x$. Then, we implement the Rejection Sampling using the following procedure:
+\begin{itemize}
+\end{itemize}
+1. Sample the candidate $Y$ following standard normal distribution.
+2. Sample $U \sim U(0, 1)$.
+3. Reject the candidate sample $Y$ if $U > \frac{f(Y)}{e(Y)} = \frac{cq(Y)}{2c\sqrt{2\pi}g(Y)} = \frac{q(Y)}{2\sqrt{2\pi}g(Y)}$. Return to step 1.
+4. Otherwise, keep $Y$. Set $X = Y$, and consider $X$ to be an element of the random sample from the target distribution. Return to step 1 until a sample of the desired size is accumulated. 
+
+Then, by law of large number, we use the following to estimate $\sigma^2$:
+$$\hat{\sigma}^2_{RS} = \frac{1}{M}\sum_{k=1}^M X_k^2.$$
+
+
+```{r}
+# set M
+M = 10^5
+## Solution: place primary code evaluating the expectation here with rejection sampling
+set.seed(100)
+maxit = M * 10 ^ 5
+X_vec = rep(0, M)
+i = index = 1
+while (i <= M & index < maxit) {
+  Yi = rnorm(1, 0, 1)
+  Ui = runif(1)
+  r = dq(Yi) / (2*sqrt(2*pi)*dnorm(Yi))
+  if (Ui < r) {
+    X_vec[i] = Yi
+    i = i + 1
+  }
+  index = index + 1
+}
+print(mean(X_vec^2))
+## End Solution
+```

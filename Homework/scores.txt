@@ -1,0 +1,13 @@
+HW1	5	5	5	nice generalization to uneven sample sizes!
+HW2	5	5	5	Q1: Suggestion: Change your directory and filenames to be consistent with the structure shown in Question 1 (-0).
+HW3	5	5	5	5	
+HW4	5	5	5	5	
+HW5	6	5	5	
+HW6	10	
+HW7	10	
+HW8	10	
+HW9	10	good practice to specifically report your results (i.e., final values for coefficients)
+HW9	10	good practice to specifically report your results (i.e., final values for coefficients)
+HW10	10	
+HW11	10	
+HW12	10

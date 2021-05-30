@@ -1,0 +1,143 @@
+---
+title: "HW 9 - MCMC"
+author: "Leo Li (PID: 730031954)"
+date: "`r format(Sys.time(), '%m/%d/%Y')`"
+output: html_document
+---
+ 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("C:/Users/haoli/Desktop/735/Homework/HW7")
+alz = read.delim(file = "alzheimers.txt", header = T, sep = "", dec = ".")
+library(optimx)
+```
+
+# Maximization of poisson GLMM from lecture
+
+Lets now maximize the poisson GLMM model given in lecture, now using an MCEM approach.  In a previous HW, you used numerical integration tools to approximate the likelihood for this model, then applied numerical optimization to obtain the estimates of the model parameters.  
+
+Here we wish to use MCEM, where in lecture we have already gone over a similar implementation using a rejection sampler in the E-step.  
+
+For this HW, please use a Metropolis Hastings Random Walk proposal distribution to approximate the Q-function in the E-step.   Specify your proposal distribution.  Write functions implementing the E-step, the M-step, and then write the main code for the MCEM algorithm.  
+
+Feel free to reuse/modify the lecture code to do this.   However, you can implement the M-step and other parts of the EM algorithm however is most convenient to you.  Not required by any means, but it may be helpful from a speed perspective to recode the sampler into Rcpp. 
+
+```{r}
+## Solution: place relevant helper functions pertaining to the E step here 
+r.walk = function(){
+  rnorm(1,0,0.4)
+}
+
+g.sim = function(u){
+  u+r.walk()
+} 
+
+sample.i = function(yi, xi = cbind(rep(1,5), 1:5), M, betat, s2gammat) {
+  u = rep(0, M)
+  u[1] = rnorm(1, 0, sqrt(s2gammat))
+  count = 0
+  for (i in 1:(M-1)) {
+    u[(i+1)] = g.sim(u[i])
+    lambdai = exp(xi %*% betat + u[(i+1)])
+    after = sum(dpois(yi, lambda = lambdai, log=T)) + dnorm(u[(i+1)], 0, sqrt(s2gammat), log=T)
+    lambdai.1 = exp(xi %*% betat + u[i])
+    before = sum(dpois(yi, lambda = lambdai.1, log=T)) + dnorm(u[(i)], 0, sqrt(s2gammat), log=T)
+    R = exp(after-before)
+    r = min(R,1)
+    keep = rbinom(1, 1, r)
+    if(keep == 1){
+      u[i+1] = u[i+1]
+      count = count+1
+    }else{
+      u[i+1] = u[i]
+    }
+  }
+  return(u)
+  print(count/M)
+}
+
+sample.all = function(data, M, betat, s2gammat) {
+  n = length(unique(data$subject))
+  samples = matrix(NA,nrow = n, ncol = M)
+  for (i in 1:n) {
+    samples.i = sample.i(yi = data$words[data$subject == i], M = M, betat = betat, s2gammat = s2gammat)
+    samples[i,] = samples.i
+  }
+  return(samples)
+}
+## End Solution
+
+## Solution: place relevant helper functions pertaining to the M step here 
+Qi = function(datai, xi = cbind(rep(1, 5), 1:5), betat, s2gammat, gammai) {
+  yi = datai$words
+  M = length(gammai)
+  x_beta_mat = xi %*% matrix(betat, nrow = length(betat), ncol = M)
+  x_beta_plus_gamma_mat = sweep(x_beta_mat, 2 , gammai, "+")
+  lambdai = exp(x_beta_plus_gamma_mat)  
+  ymat = matrix(yi, nrow = length(yi), ncol = M)
+  qi = sum(dpois(ymat, lambda = lambdai, log = T)) + sum(dnorm(gammai, mean = 0,sd = sqrt(s2gammat),log = T))
+  qi = qi / M
+  return(qi)
+}
+
+Q = function(data, betat, s2gammat, samples, logs2gammat = F) {
+  if (logs2gammat == T) {
+    s2gammat = exp(s2gammat)
+  }
+  Q = 0
+  for (i in 1:22) {
+    Q = Q + Qi(data[data$subject == i, ],betat = betat,s2gammat = s2gammat,gammai = samples[i, ])
+  }
+  return(Q)
+}
+## End Solution
+
+## Solution: place primary code for the MCEM algorithm here, calling functions in the above two sections
+## Remember to print your primary results and use the following starting values, and evaluate chain diagnostics for the final model
+# set initial parameters
+n = length(unique(alz$subject))
+tol = 10^-5
+maxit = 100
+iter = 0
+eps = Inf
+qfunction = -10000
+beta = c(1.816, 0.166) 
+s2gamma =  0.2192
+M = 10000
+burn.in = 2000
+set.seed(2333)
+
+while(eps > tol & iter < maxit){
+  qfunction0 = qfunction
+  samples = sample.all(data = alz, M = M, betat = beta, s2gammat = s2gamma)
+  qfunction = Q(data = alz, betat = beta, s2gammat = s2gamma, samples = samples)
+  eps  = abs(qfunction - qfunction0) / abs(qfunction0)
+  fit = optimx(par = c(beta, log(s2gamma)), fn = function(x, data, samples){
+      Q(data = alz, betat = x[1:length(beta)], s2gammat = x[length(beta)+1], samples = samples, logs2gammat = T)   
+    }, 
+    method = "Nelder-Mead",
+    data = data,
+    samples = samples,
+    control = list(trace = 0, maximize = T, abstol= tol))
+  beta = as.numeric(fit[1:length(beta)])
+  s2gamma = as.numeric(fit[length(beta)+1])
+  s2gamma = exp(s2gamma)
+  iter = iter + 1
+  if(iter == maxit) warning("Iteration limit reached without convergence")
+  cat(sprintf("Iter: %d Qf: %.3f s2gamma: %f beta0: %.3f beta0:%.3f eps:%f\n",iter, qfunction,s2gamma, beta[1],beta[2], eps))
+}
+## End Solution
+```
+
+To evaluate the chain diagnostics for the final model, we present the sample path and histogram for each of the 22 subjects:
+
+```{r}
+for (i in 1:n){
+par(mfrow=c(1,2))
+# plot sequence
+plot(samples[i,],type="l",ylab="gamma_i",xlab="t")
+# histogram of values
+hist(samples[i, -c(1:200)],breaks=20,xlab="gamma_i",
+     main=paste0("Hist. of N(0,0.4) Walk (Subject ", i,")"))
+}
+```

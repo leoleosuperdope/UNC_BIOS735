@@ -1,0 +1,166 @@
+---
+title: "Homework 2 - building an R package"
+author: "Leo Li (PID: 730031954)"
+date: "`r format(Sys.time(), '%m/%d/%Y')`"
+output: html_document
+---
+
+# Question 1 - build and document an R package
+
+Take the `getT` function that you wrote for last weeks homework and
+put it into a R package called `bios735`. You should add this to
+your homework repository, so it looks like the directory structure
+drawn below. You will re-use `bios735` across multiple homeworks.
+
+```
+statcomp-yourgithub
+|-- rpkg_HW1.html
+|-- rpkg_HW1.Rmd
+|-- rpkg_HW2.html
+|-- rpkg_HW2.Rmd
+|-- bios735
+    |-- DESCRIPTION
+    ...
+```
+
+Add the function `getT` to `bios735` and document its two arguments
+`x` and `f`, provide information about the output, add a description
+and details. Export the `getT` function. So in the end, you should be
+adding `.Rd` files to the `man` directory through the use of
+`devtools::document`. You should also update the `DESCRIPTION` file
+with your details. You can put whatever you like as the `Title` of
+your package and so on. Finally, build the package. Add the `.tar.gz`
+built package to your homework repository as well.
+
+The following R code is used to build the package:
+
+```{r eval=FALSE}
+library(usethis)
+library(devtools)
+
+create_package("bios735", roxygen=T)
+document()
+build("bios735")
+```
+
+# Question 2 - add tests to your package
+
+Use the *testthat* package to add tests to your package. The details
+of the tests are up to you, but you should have both some tests of the
+input to `getT`, for example, that `x` and `f` have consistent
+dimension. Also, the way we wrote `getT` assumes that there is equal
+sample size between the two levels of `f`: don't bother making the
+function more general, but instead make sure that `f` indeed is a
+factor with two levels and that both levels have `little.n` number of
+samples. You should also have some tests that the function gives the
+expected output on a toy dataset. You can for example, simulate a few
+rows of data, and then check that `getT` gives the same answer as
+`t.test` with `var.equal=TRUE`. Remember to add the tests directory to
+your GitHub repository so that the graders can see it. You can try out
+your tests with `test_package` or `test_file`.
+
+Finally, run `check(manual=TRUE)` from within your package. Make sure
+that it passes without error, including `checking tests ...` and put
+the output below: 
+
+```
+#PUT THE OUTPUT OF CHECK HERE:
+> check(manual=TRUE)
+Updating bios735 documentation
+Loading bios735
+Writing NAMESPACE
+Writing NAMESPACE
+-- Building ----------------------------------------------------------------------- bios735 --
+Setting env vars:
+* CFLAGS    : -Wall -pedantic -fdiagnostics-color=always
+* CXXFLAGS  : -Wall -pedantic -fdiagnostics-color=always
+* CXX11FLAGS: -Wall -pedantic -fdiagnostics-color=always
+----------------------------------------------------------------------------------------------
+pdflatex not found! Not building PDF manual.
+√  checking for file 'C:\Users\haolin\Desktop\735HW\HW2\bios735/DESCRIPTION' (711ms)
+-  preparing 'bios735':
+√  checking DESCRIPTION meta-information ... OK
+-  checking for LF line-endings in source and make files and shell scripts
+-  checking for empty or unneeded directories
+-  building 'bios735_0.0.1.tar.gz'
+   
+pdflatex not found! Not building PDF manual or vignettes.
+If you are planning to release this package, please run a check with manual and vignettes beforehand.
+-- Checking ----------------------------------------------------------------------- bios735 --
+Setting env vars:
+* _R_CHECK_CRAN_INCOMING_REMOTE_: FALSE
+* _R_CHECK_CRAN_INCOMING_       : FALSE
+* _R_CHECK_FORCE_SUGGESTS_      : FALSE
+* NOT_CRAN                      : true
+-- R CMD check -------------------------------------------------------------------------------
+-  using log directory 'C:/Users/haolin/AppData/Local/Temp/RtmpeWdX2k/bios735.Rcheck' (925ms)
+-  using R version 4.0.3 (2020-10-10)
+-  using platform: x86_64-w64-mingw32 (64-bit)
+-  using session charset: ISO8859-1
+-  using options '--no-manual --as-cran'
+√  checking for file 'bios735/DESCRIPTION'
+-  this is package 'bios735' version '0.0.1'
+-  package encoding: UTF-8
+√  checking package namespace information
+√  checking package dependencies (2.2s)
+√  checking if this is a source package ... OK
+√  checking if there is a namespace
+√  checking for executable files (695ms)
+√  checking for hidden files and directories
+√  checking for portable file names
+√  checking serialization versions
+√  checking whether package 'bios735' can be installed (6.1s)
+√  checking installed package size (429ms)
+√  checking package directory
+√  checking for future file timestamps (580ms)
+√  checking DESCRIPTION meta-information (837ms)
+√  checking top-level files
+√  checking for left-over files
+√  checking index information
+√  checking package subdirectories ... OK
+√  checking R files for non-ASCII characters (359ms)
+√  checking R files for syntax errors ... OK
+√  checking whether the package can be loaded (639ms)
+√  checking whether the package can be loaded with stated dependencies (360ms)
+√  checking whether the package can be unloaded cleanly ... 
+√  checking whether the namespace can be loaded with stated dependencies ... OK
+√  checking whether the namespace can be unloaded cleanly (562ms)
+√  checking loading without being on the library search path (626ms)
+√  checking dependencies in R code (402ms)
+√  checking S3 generic/method consistency (990ms)
+√  checking replacement functions (482ms)
+√  checking foreign function calls (408ms)
+√  checking R code for possible problems (5.2s)
+√  checking Rd files (614ms)
+√  checking Rd metadata ... OK
+√  checking Rd line widths ... OK
+√  checking Rd cross-references (467ms)
+√  checking for missing documentation entries (440ms)
+√  checking for code/documentation mismatches (1.2s)
+√  checking Rd \usage sections (1.5s)
+√  checking Rd contents ... OK
+√  checking for unstated dependencies in examples (397ms)
+√  checking examples (1.5s)
+√  checking for unstated dependencies in 'tests' ... OK
+-  checking tests (481ms)
+√  Running 'testthat.R' (1.5s)
+√  checking for non-standard things in the check directory (1.6s)
+√  checking for detritus in the temp directory
+   
+   
+-- R CMD check results ---------------------------------------------------- bios735 0.0.1 ----
+Duration: 34s
+
+0 errors √ | 0 warnings √ | 0 notes √
+```
+
+# Question 3 - short debugging example
+
+The last question is a short one. You should (temporarily) add a bug
+to `getT`, which can be a either a bug that produces an error or a
+silent bug which creates some kind of erroneous output. Then use one
+of the debugging methods presented in the lecture to get to this point
+in the code when calling the function, and examine the variables at
+that point in the code, e.g. `ls()` and using `head`. Take a
+screenshot of the debugging environment and add this screenshot to
+your GitHub repository.
