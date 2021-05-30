@@ -1,0 +1,19 @@
+Package: ridgeLR
+Title: Functions for fitting logistic regression and ridge logistic regression
+Version: 0.0.1
+Authors@R: 
+    person(given = "Leo",
+           family = "Li",
+           role = c("aut", "cre"),
+           email = "haolin@live.unc.edu")
+Description: Contains functions for fitting logistic regression and ridge logistic regression, and choosing the best tuning parameter for ridge logistic regression based on k-folds cross validation. 
+License: GPL-2
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.1.1
+Imports: Rcpp (>= 0.11.0), RcppArmadillo
+LinkingTo: Rcpp, RcppArmadillo
+Suggests: 
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3

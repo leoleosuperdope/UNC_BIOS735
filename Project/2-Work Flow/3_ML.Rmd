@@ -1,0 +1,258 @@
+---
+title: "3_ML"
+author: "Team 1 (Destroyers): Jesus Vazquez, Leo Li, Ying Zhang, Tian Zhao"
+date: "4/8/2021"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+As mentioned in the notes, Support Vector Machines (SVM) and Random Forest, are two popular methods for binary classification. In this part of the code we will show how to derive the results from our report. We will be diving this section into (1) training and (2) results.
+
+## Importing Data
+
+```{R warning = FALSE, message = FALSE}
+library(RANN)
+library(caret)
+library(kernlab)
+library(e1071)
+library(dplyr)
+set.seed(1)
+
+# training set
+dat <- read.csv("..//1-Data//train_cc.csv")[,-1] # deleting observation number variable
+#test set
+test <- read.csv("..//1-Data/test.csv")[,-1]
+xtest <- test %>% select(-c("target")) 
+ytest <- test %>% select(c("target"))
+```
+
+## 1. Train Model
+
+Due to the class imbalance in our outcome variables in addition to the (1) unweighted SVM and Random Forest, we will conduct the analysis using (2) down-sampling with the SVM and Random Forest, and (2) weighted SVM. These three variations will be compared to illustrate overall performance between all competing models.
+
+### Down Sampling 
+
+When using down-sampling we will select all of the observations in the minority class. In this case `target = 1`. Then, random sampling is used in the majority class, `target = 0`, to select at most an equal number observations as in the minority class. The SVM method will have a linear kernel, a $C$-grid ranging between 1 to 10. The RF will use 500 trees, and a mtry (number of randomly sampled vectors) randing between 1 to 52. The best models will be selected using the Cohen's Kappa Statistic. 
+
+```{R warning = FALSE, message = FALSE}
+# downsample
+down_dat <- read.csv("..//1-Data//train_cc_downsample.csv")[,-c(1,2)]
+
+# Define X and y
+y <- ifelse(down_dat$target == "1", "yes","no") # transform variable to factor
+x <- down_dat %>% select(-'target')
+
+library(parallel) 
+# Calculate the number of cores
+no_cores <- detectCores() - 1
+
+library(doParallel)
+# create the cluster for caret to use
+cl <- makePSOCKcluster(no_cores)
+registerDoParallel(cl)
+
+train_control <- trainControl(method="cv", number=5, search="grid", 
+                              allowParallel = TRUE, classProbs = TRUE)
+
+# SVM Linear
+mygrid2 = expand.grid(C = seq(1,10, length=10))
+fit1down <- train(x,y,method="svmLinear", 
+              trControl = train_control, 
+              metric = 'Kappa', tuneGrid = mygrid2)
+# Random Forest  
+tunegrid <- expand.grid(.mtry = (1:(dim(dat)[2]-1))) 
+fit2down <- train(x,y,method="rf",
+              trControl=train_control, 
+              metric = 'Kappa',
+              tuneGrid = tunegrid)
+stopCluster(cl)
+registerDoSEQ()
+```
+
+The results for the SVM using the down-sample are below. The best model considered a $C$-value of 8.
+
+```{R}
+fit1down
+```
+
+The results for the Random Forest using the down-sample are below. The best model considered an mtry of 3. 
+
+```{R}
+fit2down
+```
+
+### Weighted
+
+As previously mentioned, high class imbalance can make it difficult for classification methods to predict an outcome variable and can also increase computational time when searching for an optimal model. This is specially true for Linear SVM since we would have to search through a cost grid ranging between 1 to 3000 to find an optimal model whose Kappa statistic is not 0. In this part we show the implementation of the algorithm where the weight is selected to be the inverse of the proportion of observations with `target=1`. The $C$-grid will vary between 1 to 10 and will also include the inverse of the proportion of observations with `target=0`.  
+
+```{R warning = FALSE, message = FALSE}
+y <- ifelse(dat$target == "1", "yes","no") # transform variable to factor
+x <- dat %>% select(-'target')
+
+library(parallel) 
+# Calculate the number of cores
+no_cores <- detectCores() - 1
+
+library(doParallel)
+# create the cluster for caret to use
+cl <- makePSOCKcluster(no_cores)
+registerDoParallel(cl)
+
+train_control <- trainControl(method="cv", number=5, search="grid", 
+                              allowParallel = TRUE, classProbs = TRUE)
+
+# SVM Linear Weight
+myweight <- mean(dat$target, na.rm = TRUE) # add weight 
+mygridw = expand.grid(cost = c(1/(1-myweight),seq(1,10, length=10)), weight = c(1/myweight)) # specify weight
+fit1w <- train(x,y,method="svmLinearWeights", 
+              trControl = train_control, 
+              metric = 'Kappa', tuneGrid = mygridw)
+```
+
+
+The results for the weighted SVM indicate that the values used for best model are $C=1$ when weight is 6.0675.  
+
+```{R}
+fit1w
+```
+
+### Unweighted 
+
+On this part of the document we present the implementation of the RF and SVM unweighted. Again, the RF uses 500 trees and an mtry-grid ranging between 1 and 52. The SVM uses the linear kernel, a $C$-grid ranging between 1 to 3000. From previous analyses it was found that the $C$ that maximizes the Kappa statistic is 1578.94. For computational purposes we will only run the model with C=1578.94, but if one can uncomment the previous line and re-run the code to confirm results. 
+
+```{R warning = FALSE, message = FALSE}
+library(parallel) 
+# Calculate the number of cores
+no_cores <- detectCores() - 1
+
+library(doParallel)
+# create the cluster for caret to use
+cl <- makePSOCKcluster(no_cores)
+registerDoParallel(cl)
+
+train_control <- trainControl(method="cv", number=5, search="grid", 
+                              allowParallel = TRUE, classProbs = TRUE)
+# SVM Linear
+# mygrid = expand.grid(C=seq(1,3000,length=20))
+mygrid = expand.grid(C=1578.94)
+fit1 <- train(x,y,method="svmLinear", 
+              trControl = train_control, 
+              metric = 'Kappa', tuneGrid = mygrid)
+# Random Forest  
+# tunegrid <- expand.grid(.mtry = (1:(dim(dat)[2]-1))) 
+tunegrid <- expand.grid(.mtry = 11) 
+fit2 <- train(x,y, method="rf",
+              trControl=train_control, 
+              metric = 'Kappa', tuneGrid = tunegrid)
+
+stopCluster(cl)
+registerDoSEQ()
+```
+
+The results for the SVM are presented below.
+
+```{R}
+fit1
+```
+
+The results for the RF are presented below. The optimal model picked `mtry=11`.
+
+```{R}
+fit2
+```
+
+### Test 
+
+After we have trained the models using the methods previously discussed we predict the outcomes using the test-set. We write `type=prob` so that the predicted values are probabilities, instead of 0 or 1. 
+
+```{R warning = FALSE, message = FALSE}
+# Down-Sample SVM Linear
+ypredictSVM_down <- predict(fit1down,xtest, type = "prob")
+# Down-Sample RF
+ypredictRF_down <- predict(fit2down,xtest, type = "prob")
+# Weighted SVM Linear
+ypredictSVM_weight <- predict(fit1w,xtest, type = "prob")
+# SVM Linear
+ypredictSVM <- predict(fit1,xtest, type = "prob")
+# RF
+ypredictRF <- predict(fit2,xtest, type = "prob")
+```
+
+## 2. Results
+
+### ROC
+
+On this part of the study we calculate the AUC for the three methods. We can confirm the results of the report that the unweighted SVM and unweighted RF had the highest AUC's when testing the methods in the test-set.
+
+```{R warning = FALSE, message = FALSE}
+library(ROCR)
+library(pROC)
+
+# load the test dataset
+res_pred <- as.data.frame(test$target)
+res_pred$rf_down <- ypredictRF_down$yes
+res_pred$svm_down <- ypredictSVM_down$yes
+res_pred$svm_weight <- ypredictSVM_weight$yes
+res_pred$svm_uw <- ypredictSVM$yes
+res_pred$rf_uw <- ypredictRF$yes
+
+# calculate the AUC value
+auc = matrix(ncol=2,nrow=5)
+auc[1,] <- cbind("RF - Down Sample", auc(res_pred$`test$target`,res_pred$rf_down) %>% round(3))
+auc[2,] <- cbind("SVM Down Sample", auc(res_pred$`test$target`,res_pred$svm_down) %>% round(3))
+auc[3,] <- cbind("RF - Unweighted", auc(res_pred$`test$target`,res_pred$rf_uw) %>% round(3))
+auc[4,] <- cbind("SVM - Unweighted", auc(res_pred$`test$target`,res_pred$rf_uw) %>% round(3))
+auc[5,] <- cbind("SVM - Weighted", auc(res_pred$`test$target`,res_pred$svm_weight) %>% round(3))
+kableExtra::kable(auc)
+```
+
+Below we present the implementation on how to plot the AUC curves for the different methods on the same plot. We can observe that all methods perform relatively the same except for the SVM when using the down-sample procedure. 
+
+```{R}
+# generate the preds dataset for ROC curve
+preds_rf_down = prediction(res_pred$rf_down, res_pred$`test$target`)
+preds_svm_down = prediction(res_pred$svm_down, res_pred$`test$target`)
+preds_rf_uw = prediction(res_pred$rf_uw, res_pred$`test$target`)
+preds_svm_uw = prediction(res_pred$svm_uw, res_pred$`test$target`)
+preds_svm_weight = prediction(res_pred$svm_weight, res_pred$`test$target`)
+perf_rf_down = performance(preds_rf_down,"tpr","fpr")
+perf_svm_down = performance(preds_svm_down,"tpr","fpr")
+perf_rf_uw = performance(preds_rf_uw,"tpr","fpr")
+perf_svm_uw = performance(preds_svm_uw,"tpr","fpr")
+perf_svm_weight = performance(preds_svm_weight,"tpr","fpr")
+plot(perf_rf_down,col=10,lty=2 , main="ROC curves: by machine learning methods")
+plot(perf_svm_down,col=4,lty=2, add = TRUE)
+plot(perf_rf_uw,col=10, add = TRUE)
+plot(perf_svm_uw,col=4,add = TRUE )
+plot(perf_svm_weight,col =1, lty=4, add = TRUE )
+abline(0,1)
+op <- par(cex = 1)
+legend("bottomright",c("Weighted SVM","RF down","SVM down","RF unweight","SVM unweight"),col=c("black","red","blue","red","blue"), lty = c(2,2,1,1,4))
+```
+
+### Variable Importance
+
+Variable importance was also a point of interest in this research study. The top 3 most important variables are plotted for each of the methods considered. 
+
+```{R warning = FALSE, message = FALSE}
+# Down-Sample SVM Linear
+svmimp_down = varImp(fit1down)
+plot(svmimp_down, top = 3, main = "SVM Down Sample")
+# Down-Sample RF
+rfimp_down = varImp(fit2down)
+plot(rfimp_down, top = 3, main = "RF Down Sample") 
+# Weighted SVM Linear
+svmimp_linear = varImp(fit1w)
+plot(svmimp_linear, top = 3, main = "Weighted SVM")
+# SVM Linear
+svmimp = varImp(fit1)
+plot(svmimp, top = 3, main = "Unweighted SVM")
+# RF
+rfimp = varImp(fit2)
+plot(rfimp, top = 3, main = "Unweighted RF")
+```

@@ -1,0 +1,211 @@
+---
+title: "2. Parametric Models and Sensitivity Analysis"
+author: 'Team 1 (``Destroyers"): Jesus Vazquez, Leo Li, Ying Zhang, Tian Zhao'
+date: "5/5/2021"
+output: html_document
+---
+
+This R Markdown file contains the workflow for conducting the analysis using logistic regression and ridge logistic regression.
+
+We start by loading the package that we built, called `ridgeLR`:
+
+```{r setup, include=TRUE, cache = FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+dirdata <- "C:/Users/brave/OneDrive/Desktop/Bios 735"
+setwd(dirdata)
+install.packages("ridgeLR_0.0.1.tar.gz", repos = NULL)
+library(ridgeLR)
+```
+
+```{r message=FALSE, warning=FALSE}
+library(pROC)
+library(ggplot2)
+library(ROCR)
+```
+
+First, the logistic regression is used to conduct the analysis and produce the predicted probabilities for the test set.
+
+```{r}
+# fitting the model
+setwd(dirdata)
+dat <- read.csv(paste0("train_cc.csv"))
+y <- as.matrix(dat$target)
+X <- as.matrix(dat[,2:(dim(dat)[2]-1)])
+X = scale(X, center = T, scale = T)
+logistic.beta.cc = logistic_regression(y, X)
+
+#produce the predicted probabilities for the test set
+test <- read.csv("test.csv")
+X.test <- as.matrix(test[,2:(dim(test)[2]-1)])
+X.test = scale(X.test, center = T, scale = T)
+LP <- X.test %*% logistic.beta.cc
+prob <- 1/(1+exp(-LP))
+logistic.cc <- data.frame(y.test = test$target, prob = prob)
+```
+
+
+Second, the ridge logistic regression is used to conduct the analysis and produce the predicted probabilities for the test set.
+
+```{r}
+# fitting the model
+setwd(dirdata)
+dat <- read.csv(paste0("train_cc.csv"))
+y <- as.matrix(dat$target)
+X <- as.matrix(dat[,2:(dim(dat)[2]-1)])
+X = scale(X, center = T, scale = T)
+lambda <- cv_ridge_logistic_regression(y, X, (0:20)*0.01, 5)
+ridge.logistic.beta.cc =  ridge_logistic_regression_beta(y, X, lambda)
+
+#produce the predicted probabilities for the test set
+test <- read.csv("test.csv")
+X.test <- as.matrix(test[,2:(dim(test)[2]-1)])
+X.test = scale(X.test, center = T, scale = T)
+LP <- X.test %*% ridge.logistic.beta.cc
+prob <- 1/(1+exp(-LP))
+ridge.logistic.cc <- data.frame(y.test = test$target, prob = prob)
+```
+
+```{r message=FALSE, warning=FALSE}
+labels = test$target
+predictions_LR = logistic.cc[,2]
+predictions_RLR = ridge.logistic.cc[,2]
+aucs_LR = auc(labels,predictions_LR)
+aucs_RLR = auc(labels,predictions_RLR)
+
+# generate the preds dataset for ROC curve
+preds_LR = prediction(predictions_LR, labels)
+preds_RLR = prediction(predictions_RLR, labels)
+perf_RLR = performance(preds_RLR,"tpr","fpr")
+perf_LR = performance(preds_LR,"tpr","fpr")
+```
+
+
+Third, FCS multiple imputation is used to handle the missing data, and the logistic regression is used to conduct the analysis and produce the predicted probabilities for the test set.
+
+```{r}
+# fitting the model
+setwd(dirdata)
+beta.cum <- rep(0, 52)
+for (i in 1:5){
+  mi1 <- read.csv(paste0("train_mi_", i, ".csv"))
+  y <- as.matrix(mi1$target)
+  X <- as.matrix(mi1[,2:(dim(mi1)[2]-1)])
+  X = scale(X, center = T, scale = T)
+  beta = logistic_regression(y, X)
+  beta.cum <- beta.cum+beta
+}
+logistic.beta.mi <- beta.cum/5
+
+#produce the predicted probabilities for the test set
+test <- read.csv("test.csv")
+X.test <- as.matrix(test[,2:(dim(test)[2]-1)])
+X.test = scale(X.test, center = T, scale = T)
+LP <- X.test %*% logistic.beta.mi
+prob <- 1/(1+exp(-LP))
+logistic.mi <- data.frame(y.test = test$target, prob = prob)
+```
+
+Finally, FCS multiple imputation is used to handle the missing data, and the ridge logistic regression is used to conduct the analysis and produce the predicted probabilities for the test set.
+
+```{r}
+# fitting the model
+setwd(dirdata)
+beta.cum <- rep(0, 52)
+for (i in 1:5){
+  mi1 <- read.csv(paste0("train_mi_", i, ".csv"))
+  y <- as.matrix(mi1$target)
+  X <- as.matrix(mi1[,2:(dim(mi1)[2]-1)])
+  X = scale(X, center = T, scale = T)
+  lambda <- cv_ridge_logistic_regression(y, X, (0:20)*0.01, 5)
+  beta =  ridge_logistic_regression_beta(y, X, lambda)
+  beta.cum <- beta.cum+beta
+}
+ridge.logistic.beta.mi <- beta.cum/5
+
+#produce the predicted probabilities for the test set
+test <- read.csv("test.csv")
+X.test <- as.matrix(test[,2:(dim(test)[2]-1)])
+X.test = scale(X.test, center = T, scale = T)
+LP <- X.test %*% ridge.logistic.beta.mi
+prob <- 1/(1+exp(-LP))
+ridge.logistic.mi <- data.frame(y.test = test$target, prob = prob)
+```
+
+After we have trained all the models and get our coefficients and predicted probabilities, we can move on to get our roc curves.
+
+```{r}
+LRMI_pred <- logistic.mi
+RLRMI_pred <- ridge.logistic.mi
+aucs_LRMI = auc(LRMI_pred$y.test,LRMI_pred$prob)
+aucs_RLRMI = auc(RLRMI_pred$y.test,RLRMI_pred$prob)
+# generate the preds dataset for ROC curve
+preds_LRMI = prediction(LRMI_pred$prob, LRMI_pred$y.test)
+preds_RLRMI = prediction(RLRMI_pred$prob, RLRMI_pred$y.test)
+perf_LRMI = performance(preds_LRMI,"tpr","fpr")
+perf_RLRMI = performance(preds_RLRMI,"tpr","fpr")
+
+plot(perf_LR,col=2,main="ROC curves by Logistic regression and Ridge logistic regression") 
+plot(perf_RLR,col=2,add = TRUE)
+plot(perf_LRMI,col=4,add = TRUE)
+plot(perf_RLRMI,col=4,add = TRUE)
+abline(0,1)
+legend("bottomright",c("colorful: LR&RLR","imputed LR&RLR"),fill=c("red","blue"))
+ 
+```
+
+Computing all aucs.
+
+```{r}
+AUCs = as.data.frame(rbind(aucs_LR,aucs_RLR,aucs_LRMI,aucs_RLRMI))
+AUCs
+```
+
+The scaled differences plot of the estimated coefficient by logistic regression using complete cases and imputed cases.
+
+```{r}
+library(ggplot2)
+# read estimated veta of different 
+
+beta_MI_LR <- logistic.beta.cc
+beta_LR <- logistic.beta.mi
+coln = colnames(test)[2:53]
+dat1 = as.data.frame(coln)
+
+# diff_beta = LR - imputed LR
+dat1$diff_beta = abs((as.numeric(beta_LR) - as.numeric(beta_MI_LR))/ as.numeric(beta_MI_LR))
+ggplot(dat1, aes( x=diff_beta)) +
+  geom_histogram(bins = 20,fill = "lightblue")+ annotate("text", x=18, y=2, label= "gender.data = 3")+labs(x ="Scaled differences between betas of logistic regression by using complete cases and imputed cases" ) 
+
+```
+
+
+```{r}
+library(ggplot2)
+# read estimated veta of different 
+
+beta_MI_LR <- ridge.logistic.beta.cc
+beta_LR <- ridge.logistic.beta.mi
+coln = colnames(test)[2:53]
+dat1 = as.data.frame(coln)
+
+# diff_beta = LR - imputed LR
+dat1$diff_beta = abs((as.numeric(beta_LR) - as.numeric(beta_MI_LR))/ as.numeric(beta_MI_LR))
+ggplot(dat1, aes( x=diff_beta)) +
+  geom_histogram(bins = 20,fill = "lightblue")+ annotate("text", x=18, y=2, label= "gender.data = 3")+labs(x ="Scaled differences between betas of ridge logistic regression by using complete cases and imputed cases" ) 
+
+```
+
+
+For the purpose of the main analysis, the predicted probabilities for the test set for various methods are summarized as follows:
+
+* CC logistic regression: `logistic.cc`
+* CC ridge logistic regression: `ridge.logistic.cc`
+* MI logistic regression: `logistic.mi`
+* MI ridge logistic regression: `ridge.logistic.mi`
+
+For the purpose of the sensitivity analysis, the estimated regression coefficients for LR and ridge LR are summarized as:
+
+* CC logistic regression coefficients: `logistic.beta.cc`
+* CC ridge logistic regression coefficients: `ridge.logistic.beta.cc`
+* MI logistic regression coefficients: `logistic.beta.mi`
+* MI ridge logistic regression coefficients: `ridge.logistic.beta.mi`

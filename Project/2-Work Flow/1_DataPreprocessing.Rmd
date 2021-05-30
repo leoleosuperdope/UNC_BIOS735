@@ -1,0 +1,140 @@
+---
+title: "1. Data Pre-Processing"
+author: 'Team 1 (``Destroyers"): Jesus Vazquez, Leo Li, Ying Zhang, Tian Zhao'
+date: "5/5/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(readr)
+library(fastDummies)
+library(mice)
+library(caret)
+library(dplyr)
+```
+
+First, we convert the categorical variables to dummy variable notations using reference cell coding.
+
+```{r}
+setwd("C:/Users/haoli/Desktop/735/Project")
+train <- read.csv("aug_train.csv", na.strings = "")
+train.work <- train[,-c(1,2)]
+train.work$gender <- as.numeric(as.factor(train.work$gender))
+train.work$relevent_experience <- as.numeric(as.factor(train.work$relevent_experience))
+train.work$enrolled_university <- as.numeric(as.factor(train.work$enrolled_university))
+train.work$education_level <- as.numeric(as.factor(train.work$education_level))
+train.work$major_discipline <- as.numeric(as.factor(train.work$major_discipline))
+train.work$experience <- as.numeric(as.factor(train.work$experience))
+train.work$company_size <- as.numeric(as.factor(train.work$company_size))
+train.work$company_type <- as.numeric(as.factor(train.work$company_type))
+train.work$last_new_job <- as.numeric(as.factor(train.work$last_new_job))
+train.work <- train.work[(train.work$education_level!=2)&(train.work$education_level!=5), ]
+```
+
+Second, we split the data set into a training and test set with a ratio of 70% to 30%.
+
+```{r}
+ind <- round(nrow(train.work)*0.7)
+train.pre <- train.work[1:ind,]
+test.pre <- train.work[(ind+1):nrow(train.work),]
+```
+
+Then, to prepare the data sets for complete-case analysis, we only keep the complete observations in the training and test data sets.
+
+```{r}
+# finalize test data
+test.data <- test.pre[complete.cases(test.pre), ]
+gender <- dummy_cols(test.data$gender)[, -c(1,2)]
+colnames(gender) <- paste0('gender', colnames(gender))
+relevent_experience <- dummy_cols(test.data$relevent_experience)[, -c(1,2)]
+enrolled_university <- dummy_cols(test.data$enrolled_university)[, -c(1,2)]
+colnames(enrolled_university) <- paste0('enrolled_university', colnames(enrolled_university))
+education_level <- dummy_cols(test.data$education_level)[, -c(1,2)]
+colnames(education_level) <- paste0('education_level', colnames(education_level))
+major_discipline <- dummy_cols(test.data$major_discipline)[, -c(1,2)]
+colnames(major_discipline) <- paste0('major_discipline', colnames(major_discipline))
+experience <- dummy_cols(test.data$experience)[, -c(1,2)]
+colnames(experience) <- paste0('experience', colnames(experience))
+company_size <- dummy_cols(test.data$company_size)[, -c(1,2)]
+colnames(company_size) <- paste0('company_size', colnames(company_size))
+company_type <- dummy_cols(test.data$company_type)[, -c(1,2)]
+colnames(company_type) <- paste0('company_type', colnames(company_type))
+last_new_job <- dummy_cols(test.data$last_new_job)[, -c(1,2)]
+colnames(last_new_job) <- paste0('last_new_job', colnames(last_new_job))
+city_development_index <- test.data$city_development_index
+training_hours <- test.data$training_hours
+target <- test.data$target
+test.data.final <- cbind(city_development_index, gender, relevent_experience, enrolled_university, education_level,
+                         major_discipline, experience, company_size, company_type, last_new_job, training_hours, target)
+write.csv(test.data.final, file = 'test.csv')
+
+# cc training data
+test.data <- train.pre[complete.cases(train.pre), ]
+gender <- dummy_cols(test.data$gender)[, -c(1,2)]
+colnames(gender) <- paste0('gender', colnames(gender))
+relevent_experience <- dummy_cols(test.data$relevent_experience)[, -c(1,2)]
+enrolled_university <- dummy_cols(test.data$enrolled_university)[, -c(1,2)]
+colnames(enrolled_university) <- paste0('enrolled_university', colnames(enrolled_university))
+education_level <- dummy_cols(test.data$education_level)[, -c(1,2)]
+colnames(education_level) <- paste0('education_level', colnames(education_level))
+major_discipline <- dummy_cols(test.data$major_discipline)[, -c(1,2)]
+colnames(major_discipline) <- paste0('major_discipline', colnames(major_discipline))
+experience <- dummy_cols(test.data$experience)[, -c(1,2)]
+colnames(experience) <- paste0('experience', colnames(experience))
+company_size <- dummy_cols(test.data$company_size)[, -c(1,2)]
+colnames(company_size) <- paste0('company_size', colnames(company_size))
+company_type <- dummy_cols(test.data$company_type)[, -c(1,2)]
+colnames(company_type) <- paste0('company_type', colnames(company_type))
+last_new_job <- dummy_cols(test.data$last_new_job)[, -c(1,2)]
+colnames(last_new_job) <- paste0('last_new_job', colnames(last_new_job))
+city_development_index <- test.data$city_development_index
+training_hours <- test.data$training_hours
+target <- test.data$target
+test.data.final <- cbind(city_development_index, gender, relevent_experience, enrolled_university, education_level,
+                         major_discipline, experience, company_size, company_type, last_new_job, training_hours, target)
+write.csv(test.data.final, file = 'train_cc.csv')
+```
+
+The same test set will also be used for multiple imputation, and we prepare the training dataset for multiple imputation as follows.
+
+```{R}
+mi <- mice(train.pre)
+for (i in 1:5){
+  mi1 <- complete(mi, action = i, include = F)
+  test.data <- mi1[complete.cases(mi1), ]
+  gender <- dummy_cols(test.data$gender)[, -c(1,2)]
+  colnames(gender) <- paste0('gender', colnames(gender))
+  relevent_experience <- dummy_cols(test.data$relevent_experience)[, -c(1,2)]
+  enrolled_university <- dummy_cols(test.data$enrolled_university)[, -c(1,2)]
+  colnames(enrolled_university) <- paste0('enrolled_university', colnames(enrolled_university))
+  education_level <- dummy_cols(test.data$education_level)[, -c(1,2)]
+  colnames(education_level) <- paste0('education_level', colnames(education_level))
+  major_discipline <- dummy_cols(test.data$major_discipline)[, -c(1,2)]
+  colnames(major_discipline) <- paste0('major_discipline', colnames(major_discipline))
+  experience <- dummy_cols(test.data$experience)[, -c(1,2)]
+  colnames(experience) <- paste0('experience', colnames(experience))
+  company_size <- dummy_cols(test.data$company_size)[, -c(1,2)]
+  colnames(company_size) <- paste0('company_size', colnames(company_size))
+  company_type <- dummy_cols(test.data$company_type)[, -c(1,2)]
+  colnames(company_type) <- paste0('company_type', colnames(company_type))
+  last_new_job <- dummy_cols(test.data$last_new_job)[, -c(1,2)]
+  colnames(last_new_job) <- paste0('last_new_job', colnames(last_new_job))
+  city_development_index <- test.data$city_development_index
+  training_hours <- test.data$training_hours
+  target <- test.data$target
+  test.data.final <- cbind(city_development_index, gender, relevent_experience, enrolled_university, education_level,
+                           major_discipline, experience, company_size, company_type, last_new_job, training_hours, target)
+  write.csv(test.data.final, file = paste0('train_mi_', i, '.csv'))
+}
+```
+
+Finally, the down sampling is conducted as follows.
+
+```{r}
+# downsample
+dat <- read.csv("train_cc.csv")
+set.seed(1)
+down_dat <- downSample(x = dat %>% select(-c("target")),
+                       y = factor(dat$target)) %>%  rename(target=Class)
+write.csv(down_dat, file = 'train_cc_downsample.csv')
+```

@@ -1,0 +1,53 @@
+test_that("dimension correct", {
+  set.seed(123)
+  X = matrix(rnorm(90, 0, 1), ncol = 3)
+  colnames(X) <- c("first", "second", "third")
+  X.int = cbind(matrix(1, nrow = 30, ncol = 1), X)
+  colnames(X.int) <- c("int", "first", "second", "third")
+  y = rbind(matrix(1, nrow = 10, ncol = 1), matrix(0, nrow = 20, ncol = 1))
+  beta = logistic_regression(y, X.int)
+  expect_equal(length(beta), 4)
+})
+
+test_that("not full rank case", {
+  set.seed(123)
+  X = matrix(rnorm(90, 0, 1), ncol = 3)
+  colnames(X) <- c("first", "second", "third")
+  X.int = cbind(matrix(1, nrow = 30, ncol = 2), X)
+  colnames(X.int) <- c("int1", "int2", "first", "second", "third")
+  y = rbind(matrix(1, nrow = 10, ncol = 1), matrix(0, nrow = 20, ncol = 1))
+  expect_error(logistic_regression(y, X.int))
+})
+
+test_that("LR parameter estimates", {
+  library(glmnet)
+  set.seed(123)
+  X = matrix(rnorm(90, 0, 1), ncol = 3)
+  colnames(X) <- c("first", "second", "third")
+  X.int = cbind(matrix(1, nrow = 30, ncol = 1), X)
+  colnames(X.int) <- c("int", "first", "second", "third")
+  y = rbind(matrix(1, nrow = 10, ncol = 1), matrix(0, nrow = 20, ncol = 1))
+  beta = logistic_regression(y, X.int)
+  glm.fit <- glm(y ~ X, family = binomial)
+  expect_equal(as.numeric(beta), as.numeric(glm.fit$coefficients))
+})
+
+test_that("LR vs. ridge LR", {
+  set.seed(123)
+  X = matrix(rnorm(90, 0, 1), ncol = 3)
+  colnames(X) <- c("first", "second", "third")
+  y = rbind(matrix(1, nrow = 10, ncol = 1), matrix(0, nrow = 20, ncol = 1))
+  beta1 <- logistic_regression(y, scale(X))
+  beta2 <- ridge_logistic_regression_beta(y, scale(X), 2)
+  expect_gt(crossprod(beta1), crossprod(beta2))
+})
+
+test_that("ridge LR tunning", {
+  set.seed(123)
+  X = matrix(rnorm(90, 0, 1), ncol = 3)
+  colnames(X) <- c("first", "second", "third")
+  y = rbind(matrix(1, nrow = 10, ncol = 1), matrix(0, nrow = 20, ncol = 1))
+  beta1 <- ridge_logistic_regression_beta(y, scale(X), 1)
+  beta2 <- ridge_logistic_regression_beta(y, scale(X), 2)
+  expect_gt(crossprod(beta1), crossprod(beta2))
+})
